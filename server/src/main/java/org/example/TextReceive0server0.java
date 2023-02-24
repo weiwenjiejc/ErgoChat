@@ -1,5 +1,9 @@
 package org.example;
 
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -12,6 +16,9 @@ import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
 public class TextReceive0server0 extends JFrame {
+
+
+    private static final Logger logger = LoggerFactory.getLogger(TextReceive0server0.class);
 
 
     private static final int msgLen = 5;
@@ -104,6 +111,7 @@ public class TextReceive0server0 extends JFrame {
     private void startServer() throws IOException {
         ServerSocket serverSocket = new ServerSocket(port);
 
+        logger.info("服务器在端口 {} 启动", port);
 
         byte[] msgLenBytes = new byte[msgLen];
         new Thread(new Runnable() {
@@ -113,6 +121,7 @@ public class TextReceive0server0 extends JFrame {
 
                     try {
                         socket = serverSocket.accept();
+                        logger.info("{}:{}接入", socket.getInetAddress().getHostAddress(), socket.getPort());
                         InputStream inputStream = socket.getInputStream();
                         while (true) {
                             inputStream.read(msgLenBytes);

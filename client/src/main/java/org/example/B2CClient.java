@@ -1,5 +1,8 @@
 package org.example;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -10,12 +13,12 @@ import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-enum ConnectStatus {
 
-}
+public class B2CClient extends JFrame {
 
 
-public class TextSend0client0 extends JFrame {
+    private static final Logger logger = LoggerFactory.getLogger(B2CClient.class);
+
 
     private final JTextArea writeTextArea;
     private final JTextArea readTextArea;
@@ -26,7 +29,7 @@ public class TextSend0client0 extends JFrame {
     private OutputStream outputStream;
     private static final int msgLen = 5;
 
-    public TextSend0client0() throws HeadlessException, IOException {
+    public B2CClient() throws HeadlessException, IOException {
 
         setTitle("TextSend");
 
@@ -54,13 +57,10 @@ public class TextSend0client0 extends JFrame {
         JScrollPane jScrollPane = new JScrollPane(writeTextArea);
         panel.add(jScrollPane);
 
-        TextSend0client0 that = this;
+        B2CClient that = this;
 
         JPanel panel2 = initOperatingPanel();
         panel.add(panel2, BorderLayout.SOUTH);
-
-
-        //        initClient(readTextArea);
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setVisible(true);
@@ -78,11 +78,12 @@ public class TextSend0client0 extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 try {
+                    logger.info("开始连接服务器");
                     initClient(readTextArea);
                 } catch (IOException ex) {
-                    //                    throw new RuntimeException(ex);
                     status.setText("ConnectingFail");
                     writeTextArea.setText(ex.getMessage());
+                    logger.info("连接服务器异常");
                 }
                 status.setText("Connecting");
             }
@@ -164,7 +165,7 @@ public class TextSend0client0 extends JFrame {
 
     public static void main(String[] args) throws IOException {
 
-        TextSend0client0 textSend = new TextSend0client0();
+        B2CClient textSend = new B2CClient();
         if (args.length == 2) {
             textSend.setHost(args[0]);
             textSend.setPort(Integer.parseInt(args[1]));
