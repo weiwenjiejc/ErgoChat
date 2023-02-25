@@ -9,27 +9,31 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.Timer;
+import java.util.TimerTask;
 
-public class TextReceive0server0 extends JFrame {
+public class Server extends JFrame {
 
 
-    private static final Logger logger = LoggerFactory.getLogger(TextReceive0server0.class);
+    private static final Logger logger = LoggerFactory.getLogger(Server.class);
 
 
-    private static final int msgLen = 5;
     private final JTextArea readTextArea;
+    private final int width = 600;
+    private final int height = 400;
+    private final String title = "服务端";
     private int port = 9000;
     private Socket socket;
+    private ServerRead serverRead;
 
 
-    public TextReceive0server0() throws HeadlessException, IOException {
+    public Server() throws HeadlessException, IOException {
 
-        setTitle("TextReceive");
+        setTitle(title);
 
         Container contentPane = getContentPane();
 
@@ -38,7 +42,7 @@ public class TextReceive0server0 extends JFrame {
         contentPane.add(panel);
 
 
-        setSize(300, 300);
+        setSize(width, height);
 
 
         readTextArea = new JTextArea();
@@ -46,7 +50,7 @@ public class TextReceive0server0 extends JFrame {
         JPanel panel1 = new JPanel();
         panel1.setLayout(new BorderLayout());
         panel1.add(scrollPane);
-        panel1.setPreferredSize(new Dimension(panel.getWidth(), 120));
+        panel1.setPreferredSize(new Dimension(panel.getWidth(), height / 2));
         panel.add(panel1, BorderLayout.NORTH);
 
 
@@ -54,7 +58,7 @@ public class TextReceive0server0 extends JFrame {
         JScrollPane jScrollPane = new JScrollPane(jTextArea);
         panel.add(jScrollPane);
 
-        TextReceive0server0 that = this;
+        Server that = this;
 
         JButton send = new JButton("send");
         send.addActionListener(new ActionListener() {
@@ -64,8 +68,12 @@ public class TextReceive0server0 extends JFrame {
                 if (text != null && text.length() > 0) {
                     byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
                     try {
+                        if (socket == null || !socket.isConnected()) {
+                            logger.info("不存在连接客户端");
+                            return;
+                        }
                         OutputStream outputStream = socket.getOutputStream();
-                        outputStream.write(getMsgLen(bytes.length));
+                        outputStream.write(createDataHead(bytes.length));
                         outputStream.write(text.getBytes(StandardCharsets.UTF_8));
                     } catch (IOException ex) {
                         throw new RuntimeException(ex);
@@ -84,14 +92,14 @@ public class TextReceive0server0 extends JFrame {
 
     public static void main(String[] args) throws IOException {
 
-        TextReceive0server0 textReceive = new TextReceive0server0();
+        Server textReceive = new Server();
         if (args.length == 1) {
             textReceive.setPort(Integer.parseInt(args[0]));
         }
 
     }
 
-    private byte[] getMsgLen(int length) {
+    private byte[] createDataHead(int length) {
         System.out.println(length);
         String s = String.valueOf(length);
         byte[] lena = s.getBytes(StandardCharsets.UTF_8);
@@ -110,34 +118,63 @@ public class TextReceive0server0 extends JFrame {
 
     private void startServer() throws IOException {
         ServerSocket serverSocket = new ServerSocket(port);
-
         logger.info("服务器在端口 {} 启动", port);
 
-        byte[] msgLenBytes = new byte[msgLen];
-        new Thread(new Runnable() {
+
+        new Thread(() -> {
+            try {
+                while (true) {
+                    logger.info("开始接收客户端");
+                    socket = serverSocket.accept();
+                    logger.info("客户端 {}:{} 接入", socket.getInetAddress().getHostAddress(), socket.getPort());
+
+                    if (serverRead != null) {
+                        logger.info("关闭遗留接收线程");
+                        serverRead.setStop(true);
+                    }
+
+                    logger.info("开始启动接收线程");
+                    serverRead = new ServerRead(this, socket);
+                    Thread receiveThread = new Thread(serverRead, "serverRead");
+                    receiveThread.start();
+                }
+
+            } catch (Exception e) {
+                logger.info("服务端启动失败");
+            }
+
+        }).start();
+
+
+        String receiveThreadName = "receiveThread";
+
+
+        if (this.socket == null) {
+            logger.error("客户端连接失败");
+        }
+
+        检测线程状态();
+
+    }
+
+    private static void 检测线程状态() {
+        TimerTask timerTask = new TimerTask() {
             @Override
             public void run() {
-                while (true) {
-
-                    try {
-                        socket = serverSocket.accept();
-                        logger.info("{}:{}接入", socket.getInetAddress().getHostAddress(), socket.getPort());
-                        InputStream inputStream = socket.getInputStream();
-                        while (true) {
-                            inputStream.read(msgLenBytes);
-                            int forecastMsgLen = Integer.parseInt(new String(msgLenBytes).trim());
-                            byte[] buff = new byte[forecastMsgLen];
-                            int realReadLen = inputStream.read(buff);
-                            String msg = new String(buff, 0, realReadLen, StandardCharsets.UTF_8);
-                            readTextArea.setText(msg);
-                        }
-                    } catch (Exception e) {
-                        System.out.println(e.getMessage());
-                        return;
-                    }
-                }
+//                if (receiveThread != null) {
+//                    Thread.State state = receiveThread.getState();
+//                    logger.info("服务端接收线程状态:{}", state);
+//                } else {
+//                    logger.info("接收线程不存在");
+//                }
             }
-        }).start();
+        };
+
+        Timer timer = new Timer();
+        /**
+         * 延迟1秒，每30秒执行一次
+         */
+//        timer.schedule(timerTask, 1000 * 1, 1000 * 30);
     }
 
     public void setPort(int port) {
@@ -147,4 +184,18 @@ public class TextReceive0server0 extends JFrame {
     public int getPort() {
         return port;
     }
+
+    public Socket getSocket() {
+        return socket;
+    }
+
+    public void setSocket(Socket socket) {
+        this.socket = socket;
+    }
+
+    public JTextArea getReadTextArea() {
+        return readTextArea;
+    }
+
+
 }

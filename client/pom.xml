@@ -30,7 +30,7 @@
                     <archive>
                         <manifest>
                             <!-- 此处指定main方法入口的class -->
-                            <mainClass>org.example.B2CClient</mainClass>
+                            <mainClass>org.example.Client</mainClass>
                         </manifest>
                     </archive>
                 </configuration>

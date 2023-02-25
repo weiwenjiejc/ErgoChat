@@ -8,30 +8,31 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
 
-public class B2CClient extends JFrame {
+public class Client extends JFrame {
 
 
-    private static final Logger logger = LoggerFactory.getLogger(B2CClient.class);
+    private static final Logger logger = LoggerFactory.getLogger(Client.class);
 
 
     private final JTextArea writeTextArea;
     private final JTextArea readTextArea;
-    private final int width = 800;
-    private final int height = 600;
-    private String host = "localhost";
-    private int port = 9000;
-    private OutputStream outputStream;
+    private final int width = 600;
+    private final int height = 400;
+    private String serverHost = "localhost";
+    private int serverPort = 9000;
+    //    private OutputStream outputStream;
     private static final int msgLen = 5;
+    private Socket socket;
+    private ClientRead clientRead;
 
-    public B2CClient() throws HeadlessException, IOException {
+    public Client() throws HeadlessException, IOException {
 
-        setTitle("TextSend");
+        setTitle("客户端");
 
         Container contentPane = getContentPane();
 
@@ -49,7 +50,7 @@ public class B2CClient extends JFrame {
         JPanel panel1 = new JPanel();
         panel1.setLayout(new BorderLayout());
         panel1.add(scrollPane);
-        panel1.setPreferredSize(new Dimension(panel.getWidth(), 300));
+        panel1.setPreferredSize(new Dimension(panel.getWidth(), height / 2));
         panel.add(panel1, BorderLayout.NORTH);
 
 
@@ -57,7 +58,7 @@ public class B2CClient extends JFrame {
         JScrollPane jScrollPane = new JScrollPane(writeTextArea);
         panel.add(jScrollPane);
 
-        B2CClient that = this;
+        Client that = this;
 
         JPanel panel2 = initOperatingPanel();
         panel.add(panel2, BorderLayout.SOUTH);
@@ -97,10 +98,15 @@ public class B2CClient extends JFrame {
                 if (text != null && text.length() > 0) {
                     byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
                     try {
+                        if (socket == null || !socket.isConnected()) {
+                            logger.info("连接不存在，无法发送");
+                            return;
+                        }
+                        OutputStream outputStream = socket.getOutputStream();
                         outputStream.write(getMsgLen(bytes.length));
                         outputStream.write(text.getBytes(StandardCharsets.UTF_8));
                     } catch (IOException ex) {
-                        throw new RuntimeException(ex);
+                        logger.error("发送消息失败:{}", ex.getMessage());
                     }
                 }
                 writeTextArea.setText("");
@@ -111,29 +117,30 @@ public class B2CClient extends JFrame {
     }
 
     private void initClient(JTextArea readTextArea) throws IOException {
-        Socket socket = new Socket(host, port);
-        outputStream = socket.getOutputStream();
-        InputStream inputStream = socket.getInputStream();
 
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    byte[] msgLenBytes = new byte[msgLen];
-                    try {
-                        inputStream.read(msgLenBytes);
-                        byte[] textBytes = new byte[Integer.parseInt(new String(msgLenBytes).trim())];
-                        inputStream.read(textBytes);
-                        readTextArea.setText(new String(textBytes, StandardCharsets.UTF_8));
-                    } catch (IOException e) {
-                        System.out.println(e.getMessage());
-                        writeTextArea.setText(e.getMessage());
-                        // 缁撴潫绾跨▼
-                        return;
-                    }
-                }
+        if (socket != null) {
+            logger.info("遗留socket存在，结束遗留socket");
+            socket.close();
+            if (clientRead != null) {
+                logger.info("遗留接收线程存在，结束遗留接收线程");
+                clientRead.setStop(true);
             }
-        }).start();
+        }
+
+        try {
+            socket = new Socket(serverHost, serverPort);
+            logger.info("开始连接服务器:{}:{}", serverHost, serverPort);
+            int localPort = socket.getLocalPort();
+            logger.info("客户端启动端口:{}:", localPort);
+        } catch (Exception e) {
+            logger.info("连接服务器失败:{}", e.getMessage());
+            return;
+        }
+
+        clientRead = new ClientRead(this, socket);
+        Thread thread = new Thread(clientRead);
+        thread.start();
+
     }
 
 
@@ -155,20 +162,45 @@ public class B2CClient extends JFrame {
     }
 
 
-    public void setHost(String host) {
-        this.host = host;
+    public void setServerHost(String serverHost) {
+        this.serverHost = serverHost;
     }
 
-    public void setPort(int port) {
-        this.port = port;
+    public void setServerPort(int serverPort) {
+        this.serverPort = serverPort;
     }
 
     public static void main(String[] args) throws IOException {
 
-        B2CClient textSend = new B2CClient();
+        Client textSend = new Client();
         if (args.length == 2) {
-            textSend.setHost(args[0]);
-            textSend.setPort(Integer.parseInt(args[1]));
+            textSend.setServerHost(args[0]);
+            textSend.setServerPort(Integer.parseInt(args[1]));
         }
+    }
+
+    public String getServerHost() {
+        return serverHost;
+    }
+
+    public int getServerPort() {
+        return serverPort;
+    }
+
+    public JTextArea getWriteTextArea() {
+        return writeTextArea;
+    }
+
+    public JTextArea getReadTextArea() {
+        return readTextArea;
+    }
+
+
+    public Socket getSocket() {
+        return socket;
+    }
+
+    public void setSocket(Socket socket) {
+        this.socket = socket;
     }
 }

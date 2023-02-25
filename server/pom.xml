@@ -30,7 +30,7 @@
                     <archive>
                         <manifest>
                             <!-- 此处指定main方法入口的class -->
-                            <mainClass>org.example.TextReceive0server0</mainClass>
+                            <mainClass>org.example.Server</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
