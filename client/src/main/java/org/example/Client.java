@@ -32,6 +32,8 @@ public class Client extends JFrame {
     private Socket socket;
     private ClientRead clientRead;
     private File selectedFile;
+    private JTextField clientStatus;
+    private JTextField connectStatus;
 
     public Client() throws HeadlessException, IOException {
 
@@ -73,10 +75,21 @@ public class Client extends JFrame {
     private JPanel initOperatingPanel() {
         JPanel panel = new JPanel();
 
-        JLabel status = new JLabel("Disconnected");
-        panel.add(status);
 
-        JButton start = new JButton("start");
+        clientStatus = new JTextField(13);
+        clientStatus.setEditable(false);
+        clientStatus.setText("");
+        panel.add(clientStatus);
+
+        connectStatus = new JTextField(13);
+        connectStatus.setEditable(false);
+        connectStatus.setText("未连接");
+        panel.add(connectStatus);
+
+//        JLabel status = new JLabel("Disconnected");
+//        panel.add(status);
+
+        JButton start = new JButton("连接");
         panel.add(start);
         start.addActionListener(new ActionListener() {
             @Override
@@ -85,11 +98,11 @@ public class Client extends JFrame {
                     logger.info("开始连接服务器");
                     initClient(readTextArea);
                 } catch (IOException ex) {
-                    status.setText("ConnectingFail");
+//                    status.setText("ConnectingFail");
                     writeTextArea.setText(ex.getMessage());
                     logger.info("连接服务器异常");
                 }
-                status.setText("Connecting");
+//                status.setText("Connecting");
             }
         });
 
@@ -115,7 +128,7 @@ public class Client extends JFrame {
             }
         });
 
-        JButton send = new JButton("send");
+        JButton send = new JButton("发送文本");
         send.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -259,6 +272,8 @@ public class Client extends JFrame {
 
         try {
             socket = new Socket(serverHost, serverPort);
+            connectStatus.setText("目标:" + serverHost + ":" + serverPort);
+            clientStatus.setText("本机:" + socket.getLocalAddress().getHostAddress() + ":" + socket.getLocalPort());
             logger.info("开始连接服务器:{}:{}", serverHost, serverPort);
             int localPort = socket.getLocalPort();
             logger.info("客户端启动端口:{}:", localPort);

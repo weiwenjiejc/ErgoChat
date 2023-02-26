@@ -33,6 +33,8 @@ public class Server extends JFrame {
     private Socket socket;
     private ServerRead serverRead;
     private File selectedFile;
+    private JTextField connectStatus;
+    private JTextField serverStatus;
 
 
     public Server() throws HeadlessException, IOException {
@@ -178,6 +180,19 @@ public class Server extends JFrame {
 
     private JPanel initOperatingPanel(Server that) {
         JPanel panel2 = new JPanel();
+
+
+        serverStatus = new JTextField(13);
+        serverStatus.setEditable(false);
+        serverStatus.setText("");
+        panel2.add(serverStatus);
+
+        connectStatus = new JTextField(13);
+        connectStatus.setEditable(false);
+        connectStatus.setText("未连接");
+        panel2.add(connectStatus);
+
+
         JButton button = new JButton("发送文件");
         button.addActionListener(new ActionListener() {
             @Override
@@ -195,7 +210,7 @@ public class Server extends JFrame {
                 dialog.setVisible(true);
             }
         });
-        JButton send = new JButton("send");
+        JButton send = new JButton("发送文本");
         send.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -260,14 +275,17 @@ public class Server extends JFrame {
         ServerSocket serverSocket = new ServerSocket(port);
         logger.info("服务器在端口 {} 启动", port);
 
+        serverStatus.setText("本机:" + serverSocket.getInetAddress().getHostAddress() + ":" + port);
 
         new Thread(() -> {
             try {
                 while (true) {
                     logger.info("开始接收客户端");
                     socket = serverSocket.accept();
-                    logger.info("客户端 {}:{} 接入", socket.getInetAddress().getHostAddress(), socket.getPort());
-
+                    String hostAddress = socket.getInetAddress().getHostAddress();
+                    int port1 = socket.getPort();
+                    logger.info("客户端 {}:{} 接入", hostAddress, port1);
+                    connectStatus.setText("目标:" + hostAddress + ":" + port1);
                     if (serverRead != null) {
                         logger.info("关闭遗留接收线程");
                         serverRead.setStop(true);
@@ -344,5 +362,13 @@ public class Server extends JFrame {
 
     public File getSelectedFile() {
         return selectedFile;
+    }
+
+    public JTextField getConnectStatus() {
+        return connectStatus;
+    }
+
+    public void setConnectStatus(JTextField connectStatus) {
+        this.connectStatus = connectStatus;
     }
 }
