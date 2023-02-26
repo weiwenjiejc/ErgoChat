@@ -8,6 +8,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ServerSocket;
@@ -26,9 +28,11 @@ public class Server extends JFrame {
     private final int width = 600;
     private final int height = 400;
     private final String title = "服务端";
+    private final JTextArea writeTextArea;
     private int port = 9000;
     private Socket socket;
     private ServerRead serverRead;
+    private File selectedFile;
 
 
     public Server() throws HeadlessException, IOException {
@@ -54,17 +58,151 @@ public class Server extends JFrame {
         panel.add(panel1, BorderLayout.NORTH);
 
 
-        JTextArea jTextArea = new JTextArea();
-        JScrollPane jScrollPane = new JScrollPane(jTextArea);
+        writeTextArea = new JTextArea();
+        JScrollPane jScrollPane = new JScrollPane(writeTextArea);
         panel.add(jScrollPane);
 
         Server that = this;
 
+
+        JPanel panel2 = initOperatingPanel(that);
+
+
+        panel.add(panel2, BorderLayout.SOUTH);
+
+        startServer();
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setVisible(true);
+    }
+
+    private void initSendFile(JDialog dialog) {
+        Container contentPane = dialog.getContentPane();
+
+        JPanel panel0 = new JPanel();
+        panel0.setLayout(new BorderLayout());
+        contentPane.add(panel0);
+
+        JPanel panel = new JPanel();
+        panel0.add(panel, BorderLayout.NORTH);
+        JButton select = new JButton("选择");
+        JTextArea jTextArea = new JTextArea();
+
+        select.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                JFileChooser fileChooser = new JFileChooser();
+                fileChooser.setMultiSelectionEnabled(false);
+                fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+                int openDialog = fileChooser.showOpenDialog(dialog);
+                if (openDialog == JFileChooser.APPROVE_OPTION) {
+                    File selectedFile = fileChooser.getSelectedFile();
+                    String absolutePath = selectedFile.getAbsolutePath();
+                    logger.info("选中文件:{}", absolutePath);
+                    jTextArea.setText(absolutePath);
+
+                }
+            }
+        });
+
+        jTextArea.setLineWrap(true);
+        jTextArea.setPreferredSize(new Dimension(dialog.getWidth(), 100));
+        panel.add(select);
+        panel.add(jTextArea);
+
+        JPanel panel1 = new JPanel();
+        panel0.add(panel1, BorderLayout.CENTER);
+
+        JPanel panel2 = new JPanel();
+        panel0.add(panel2, BorderLayout.SOUTH);
+        JButton confirm = new JButton("发送");
+        confirm.addActionListener(e -> {
+            String text = jTextArea.getText();
+            if (text != null && !text.equals("")) {
+                File file = new File(text);
+                setSelectedFile(file);
+                if (!file.exists()) {
+                    logger.info("文件不存在");
+
+                } else {
+                    writeFile(file, dialog);
+                }
+            }
+            dialog.dispose();
+        });
+        panel2.add(confirm);
+    }
+
+    private void writeFile(File file, JDialog dialog) {
+        try {
+            if (socket == null || !socket.isConnected()) {
+                JOptionPane.showMessageDialog(dialog, "连接不存在", "警告", JOptionPane.ERROR_MESSAGE);
+                logger.info("客户端未连接");
+                return;
+            }
+            OutputStream outputStream = socket.getOutputStream();
+            outputStream.write("1".getBytes(StandardCharsets.UTF_8)); // 类型，0，文本，1，文件
+            long len = Constants.fileNameMaxLen + file.length();
+            logger.info("发送文件长度:{}", len);
+            outputStream.write(MsgUtils.fileMsg(len, Constants.FileMessageLength)); // 内容长度
+            String name = file.getName();
+            outputStream.write(MsgUtils.fileMsg(name, Constants.fileNameMaxLen));
+            FileInputStream inputStream = new FileInputStream(file);
+            byte[] bytes = new byte[Constants.readFileLen];
+            long len0 = file.length();
+            while (len0 > 0) { // 发送文件内容
+                if (len0 > Constants.readFileLen) {
+                    int read = inputStream.read(bytes);
+                    if (read == -1) {
+                        break;
+                    }
+                    outputStream.write(bytes, 0, read);
+                    len0 -= Constants.readFileLen;
+                } else {
+                    byte[] tempBytes = new byte[(int) len0];
+                    logger.info("预计读取长度:{}", len0);
+                    int read = inputStream.read(tempBytes);
+                    logger.info("实际读取长度:{}", read);
+                    if (read == -1) {
+                        break;
+                    }
+                    outputStream.write(tempBytes, 0, read);
+                    len0 = 0;
+                    break;
+                }
+            }
+            inputStream.close();
+        } catch (Exception ex) {
+            logger.info("发送文件失败:{}", ex.getMessage());
+        }
+    }
+
+    private JPanel initOperatingPanel(Server that) {
+        JPanel panel2 = new JPanel();
+        JButton button = new JButton("发送文件");
+        button.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (socket == null || !socket.isConnected()) {
+                    JOptionPane.showMessageDialog(that, "连接不存在", "警告", JOptionPane.ERROR_MESSAGE);
+                    logger.info("客户端未连接");
+                    return;
+                }
+                JDialog dialog = new JDialog(that, "发送文件", true);
+                dialog.setSize(300, 300);
+                dialog.setLocationRelativeTo(that);
+                dialog.setLayout(new BorderLayout());
+                initSendFile(dialog);
+                dialog.setVisible(true);
+            }
+        });
         JButton send = new JButton("send");
         send.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                String text = jTextArea.getText();
+                if (socket == null || !socket.isConnected()) {
+                    JOptionPane.showMessageDialog(that, "连接不存在", "警告", JOptionPane.ERROR_MESSAGE);
+                }
+                String text = writeTextArea.getText();
                 if (text != null && text.length() > 0) {
                     byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
                     try {
@@ -72,22 +210,24 @@ public class Server extends JFrame {
                             logger.info("不存在连接客户端");
                             return;
                         }
-                        OutputStream outputStream = socket.getOutputStream();
-                        outputStream.write(createDataHead(bytes.length));
-                        outputStream.write(text.getBytes(StandardCharsets.UTF_8));
+                        writeText(text, bytes);
                     } catch (IOException ex) {
                         throw new RuntimeException(ex);
                     }
                 }
-                jTextArea.setText("");
+                writeTextArea.setText("");
             }
-
         });
-        panel.add(send, BorderLayout.SOUTH);
+        panel2.add(button);
+        panel2.add(send);
+        return panel2;
+    }
 
-        startServer();
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setVisible(true);
+    private void writeText(String text, byte[] bytes) throws IOException {
+        OutputStream outputStream = socket.getOutputStream();
+        outputStream.write("0".getBytes(StandardCharsets.UTF_8)); // 类型，0，文本，1，文件
+        outputStream.write(createDataHead(bytes.length));
+        outputStream.write(text.getBytes(StandardCharsets.UTF_8));
     }
 
     public static void main(String[] args) throws IOException {
@@ -198,4 +338,11 @@ public class Server extends JFrame {
     }
 
 
+    public void setSelectedFile(File selectedFile) {
+        this.selectedFile = selectedFile;
+    }
+
+    public File getSelectedFile() {
+        return selectedFile;
+    }
 }
